@@ -7,6 +7,10 @@ Trying to unlock phones' bootloaders without having a working display to manuall
 
 > Note: The method described [here](https://alephsecurity.com/2018/01/22/qualcomm-edl-2/) (and, subsequently, [here](https://github.com/Giovix92/EDLUnlock)) doesn't work (devinfo seems to remain unchanged up to matching md5-s no matter the status of the bootloader)
 
+### Method
+
+> Note: Opposite to the way with patching `devinfo`, this procedure will still wipe the userdata. The only upside compared to the original way is that it's no longer necessary to have a working display at all.
+
 The state of the oem unlocking switch is located in the `config` partition:
 ```diff
 1,2c1,2
@@ -21,12 +25,22 @@ The state of the oem unlocking switch is located in the `config` partition:
 > 0007fff0: 0000 0000 0000 0000 0000 0000 0000 0001  ................
 ```
 
-Changing the `0x7fff7` byte doesn't do the trick: the header may contain some kind of checksum (or that's the wrong bit to flip).
-On my device I was able to flash the whole partition using `edl w config config_unlocked.img`, and then `fastboot oem unlock` worked.
+Changing the `0x7ffff` byte did the trick without modifying the header at all.
+On my device I was able to flash the whole partition using `edl w config config_patched.img`, and then `fastboot oem unlock` worked.
 
-Questions:
-* if that's a checksum, what does it depend on (os verions, particular device, etc)?
-* if the partition's contents vary device-to-device or version-to-version, how to calculate them outside of the device?
+### How to (linux)
+
+0. install [edl](https://github.com/bkerler/edl) and android platform tools
+1. boot the phone in edl mode by powering it off then connecting it to the pc while pressing the volume up button (NO power button so far, otherwise it'll go into fastoot mode!)
+2. backup the original `config` partition via `edl r config config_orig.img`
+3. flip the last byte in the dumped image by your preferred method of choice (e.g. via hexcurse: `hexcurse config_orig.img` -> ctrl+g -> type 7ffff -> enter -> 01 -> ctrl q -> y -> type config_patched.img -> enter)
+4. write the patched image back to the device: `edl w config config_patched.img`
+5. reboot (disconnect the phone from the pc, long press the power button 'til the led stops glowing yellow)
+6. go into fastboot (power + volume up while the phone is DISCONNECTED from the pc or power source) -> `fastboot oem unlock` -> you're breathtaking
+
+> Note: You may try to use my `config_patched.img` from the `./files/op5t` subdirectory. Before doing so make sure to backup the original partition (steps 0, 1 and 2) anyway in case it bricks stuff.
+
+> Note: Also there's `config_unlocked.img` from a previous iteration where I made a mistake. Flashing it also worked.
+
+### Questions:
 * is it possible to go with patching `devinfo` on earlier versions of OxygenOS?
-
-> Note: `config_unlocked.img` is in the `./files/op5t` subdirectory. Before trying out make sure to `edl r config config_orig.img` in case it bricks stuff.
